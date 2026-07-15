@@ -30,12 +30,13 @@ class Training:
         self.learning_rate = -1
 
     def show_info(self):
+        s = self.model.settings
         info = "[training] general info:\n"
         info += " - network info:\n"
-        info += f"   - hidden neurons: {self.model.hidden_num}\n"
-        info += f"   - embed dimentions: {self.model.embed_dims}\n"
-        info += f"   - context length: {self.model.context_len}\n"
-        info += f"   - dropout: {self.model.dropout}\n"
+        info += f"   - hidden neurons: {s.hidden_neurons}\n"
+        info += f"   - embed dimentions: {s.embedding_dims}\n"
+        info += f"   - context length: {s.context_len}\n"
+        info += f"   - dropout: {s.dropout}\n"
         info += f"   - using device: {self.model.device}\n"
         info += " - training at:\n"
         info += f"   - batch size: {self.batch_size}\n"
@@ -55,7 +56,7 @@ class Training:
                 text_to_ids(
                     self.tokenizer.engine,
                     self.tokenizer.filter_text(q_text),
-                    self.model._model.context_len
+                    self.model.settings.context_len
                 ),
                 dtype=torch.long
             )
@@ -63,9 +64,10 @@ class Training:
             a_ids = text_to_ids(
                 self.tokenizer.engine,
                 a_text,
-                self.model._model.context_len
+                self.model.settings.context_len
             )
             self.training_data.append((q_ids, torch.tensor(a_ids, dtype=torch.long)))
+
 
         X = torch.stack([q for q, _ in self.training_data])
         Y = torch.stack([a for _, a in self.training_data])  # (N, context_max_tokens), long

@@ -110,6 +110,9 @@ class AutoregrssionNetwork(nn.Module):
             if use_tf and random.random() < teacher_forcing_ratio:
                 prev_id = target_ids[:, t]
             else:
+                if not use_tf and t > 0:
+                    logits[torch.arange(B, device=logits.device), prev_id] -= 10.0
+
                 if top_k > 0:
                     top_logits, top_indices = torch.topk(logits, top_k, dim=-1)
                     probs = torch.softmax(top_logits / temperature, dim=-1)

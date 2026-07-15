@@ -9,6 +9,7 @@ SERVER_IP = os.environ["MLP_MLOPS_SERVER_IP"]
 SERVER_USER = os.environ.get("MLP_MLOPS_SERVER_USER", "root")
 SERVER_PATH = os.environ.get("MLP_MLOPS_SERVER_PATH", "/root/mmlp")
 LOCAL_MODEL_PATH = os.environ.get("MLP_MODEL_PATH", "./.cache/nn.pth")
+LOCAL_MODEL_SETTINGS_PATH = os.environ.get("MLP_MODEL_PATH", "./.cache/settings.json")
 
 def run_ssh(cmd: str, background: bool = False):
     if background:
@@ -26,7 +27,7 @@ def update_code():
 def start_train(args: str):
     print("[cloud] Starting training on server...")
 
-    cmd = f"source .venv/bin/activate && python ./tests/mlf_usage.py {args}"
+    cmd = f"cd {SERVER_PATH} && source .venv/bin/activate && PYTHONUNBUFFERED=1 python3 ./tests/mlf_training.py {args} 2>&1 | tee train.log"
     run_ssh(cmd, background=True)
     print("[cloud] Training started in background.")
     print(f"[cloud] To view logs: ssh {SERVER_USER}@{SERVER_IP} 'tail -f {SERVER_PATH}/train.log'")
@@ -36,9 +37,12 @@ def fetch_model():
     print("[cloud] Downloading model from server...")
     os.makedirs(os.path.dirname(LOCAL_MODEL_PATH), exist_ok=True)
     remote_path = f"{SERVER_USER}@{SERVER_IP}:{SERVER_PATH}/.cache/nn.pth"
+    remote_path_settings = f"{SERVER_USER}@{SERVER_IP}:{SERVER_PATH}/.cache/settings.json"
 
     subprocess.run(["scp", remote_path, LOCAL_MODEL_PATH], check=True)
+    subprocess.run(["scp", remote_path_settings, LOCAL_MODEL_SETTINGS_PATH], check=True)
     print(f"[cloud] Model saved to {LOCAL_MODEL_PATH}")
+    print(f"[cloud] Model settings saved to {LOCAL_MODEL_SETTINGS_PATH}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Cloud Training CLI")
@@ -56,6 +60,11 @@ if __name__ == "__main__":
     if args.command == "update":
         update_code()
     elif args.command == "train":
-        start_train(" ".join(args.args) if args.args else "")
+        t_args = args.args
+
+        if t_args and t_args[0] == "--":
+            t_args = t_args[1:]
+
+        start_train(" ".join(t_args))
     elif args.command == "fetch":
         fetch_model()
