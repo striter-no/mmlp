@@ -2,7 +2,9 @@ import argparse
 import subprocess
 import os
 
-# Твои настройки сервера
+from dotenv import load_dotenv
+load_dotenv()
+
 SERVER_IP = os.environ["MLP_MLOPS_SERVER_IP"]
 SERVER_USER = os.environ.get("MLP_MLOPS_SERVER_USER", "root")
 SERVER_PATH = os.environ.get("MLP_MLOPS_SERVER_PATH", "/root/mmlp")
