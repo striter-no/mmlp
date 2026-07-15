@@ -25,7 +25,7 @@ class Training:
         self.model = model
         self.storage = storage
 
-        self.training_data = []
+        self.dataloader: DataLoader | None = None
         self.batch_size = -1
         self.learning_rate = -1
 
@@ -51,14 +51,14 @@ class Training:
         batch_size: int = 64,
         learning_rate = 0.001
     ):
+        X_list = []
+        Y_list = []
+
         for q_text, a_text in self.storage.pairs:
-            q_ids = torch.tensor(
-                text_to_ids(
-                    self.tokenizer.engine,
-                    self.tokenizer.filter_text(q_text),
-                    self.model.settings.context_len
-                ),
-                dtype=torch.long
+            q_ids = text_to_ids(
+                self.tokenizer.engine,
+                self.tokenizer.filter_text(q_text),
+                self.model.settings.context_len,
             )
 
             a_ids = text_to_ids(
@@ -67,11 +67,12 @@ class Training:
                 self.model.settings.context_len,
                 add_eos=True
             )
-            self.training_data.append((q_ids, torch.tensor(a_ids, dtype=torch.long)))
 
+            X_list.append(q_ids)
+            Y_list.append(a_ids)
 
-        X = torch.stack([q for q, _ in self.training_data])
-        Y = torch.stack([a for _, a in self.training_data])  # (N, context_max_tokens), long
+        X = torch.tensor(X_list, dtype=torch.long)
+        Y = torch.tensor(Y_list, dtype=torch.long)
 
         dataset = TensorDataset(X, Y)
         self.dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
@@ -85,7 +86,7 @@ class Training:
         self.learning_rate = learning_rate
 
     def train_epoch(self) -> EpochInfo:
-        if len(self.training_data) == 0:
+        if self.dataloader is None:
             raise RuntimeError("Cannot train without training data")
 
         self.model._model.train()
