@@ -86,7 +86,12 @@ if __name__ == "__main__":
 
     nn = Network(tokenizer=tokenizer, settings=settings)
 
-    train_network(nn, storage, tokenizer, args.epochs, args.stop_error, args.batch)
+    try:
+        train_network(nn, storage, tokenizer, args.epochs, args.stop_error, args.batch)
+    except (KeyboardInterrupt, EOFError):
+        print("[main] interrupted")
+    except Exception as ex:
+        print(f"[main] during training exception occured: {ex}")
 
     print("[main] done, saving results")
     nn.save_to_file("./.cache/nn.pth")
