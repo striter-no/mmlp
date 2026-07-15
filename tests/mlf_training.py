@@ -15,11 +15,11 @@ from mlf.settings import ModelSettings
 
 from mlc.datasets import Dataset
 
-def train_network(nn, storage, tokenizer, epochs, stop_error):
+def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size):
     trainer = Training(model=nn, storage=storage, tokenizer=tokenizer)
 
     print("[main] making training data")
-    trainer.prepare_data(batch_size=32)
+    trainer.prepare_data(batch_size=batch_size)
     trainer.show_info()
 
     print(f"[main] starting to train NN for {epochs} epochs")
@@ -41,6 +41,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--headless", action="store_true", help="Run without interactive tests")
     parser.add_argument("--epochs", type=int, help="How many epochs to train", default=60)
+    parser.add_argument("--batch", type=int, help="Number of batch requests", default=64)
     parser.add_argument("--pairs", type=int, help="Number of Q/A pairs to load", default=2000)
     parser.add_argument("--tokens", type=int, help="Vocabulary size", default=3000)
     parser.add_argument("--context", type=int, help="Context length (tokens)", default=200)
@@ -85,7 +86,7 @@ if __name__ == "__main__":
 
     nn = Network(tokenizer=tokenizer, settings=settings)
 
-    train_network(nn, storage, tokenizer, args.epochs, args.stop_error)
+    train_network(nn, storage, tokenizer, args.epochs, args.stop_error, args.batch)
 
     print("[main] done, saving results")
     nn.save_to_file("./.cache/nn.pth")
