@@ -9,7 +9,7 @@ SERVER_IP = os.environ["MLP_MLOPS_SERVER_IP"]
 SERVER_USER = os.environ.get("MLP_MLOPS_SERVER_USER", "root")
 SERVER_PATH = os.environ.get("MLP_MLOPS_SERVER_PATH", "/root/mmlp")
 LOCAL_MODEL_PATH = os.environ.get("MLP_MODEL_PATH", "./.cache/nn.pth")
-LOCAL_MODEL_SETTINGS_PATH = os.environ.get("MLP_MODEL_PATH", "./.cache/settings.json")
+LOCAL_MODEL_SETTINGS_PATH = os.environ.get("MLP_MODEL_SETTINGS_PATH", "./.cache/settings.json")
 
 def run_ssh(cmd: str, background: bool = False):
     if background:
@@ -36,6 +36,7 @@ def start_train(args: str):
 def fetch_model():
     print("[cloud] Downloading model from server...")
     os.makedirs(os.path.dirname(LOCAL_MODEL_PATH), exist_ok=True)
+    os.makedirs(os.path.dirname(LOCAL_MODEL_SETTINGS_PATH), exist_ok=True)
     remote_path = f"{SERVER_USER}@{SERVER_IP}:{SERVER_PATH}/.cache/nn.pth"
     remote_path_settings = f"{SERVER_USER}@{SERVER_IP}:{SERVER_PATH}/.cache/settings.json"
 

@@ -39,6 +39,7 @@ class AutoregrssionNetwork(nn.Module):
         embed_dim: int = 32,
         hidden: int = 512,
         pad_id: int = 0,
+        eos_id: int = 0,
         dropout: float = 0.3,
         use_attention: bool = True,
     ):
@@ -47,6 +48,7 @@ class AutoregrssionNetwork(nn.Module):
         self.context_len  = context_len
         self.bos_id       = vocab_size
         self.pad_id       = pad_id
+        self.eos_id       = eos_id
         self.use_attention = use_attention
 
         self.dropout = nn.Dropout(dropout)
@@ -56,7 +58,9 @@ class AutoregrssionNetwork(nn.Module):
         self.encoder = nn.GRU(
             input_size=embed_dim,
             hidden_size=hidden,
+            num_layers=2,
             batch_first=True,
+            dropout=0.3
         )
 
         if use_attention:
@@ -66,7 +70,12 @@ class AutoregrssionNetwork(nn.Module):
             head_in = hidden
 
         self.cell = nn.GRUCell(embed_dim, hidden)
-        self.head = nn.Linear(head_in, vocab_size)
+        self.head = nn.Sequential(
+            nn.Linear(head_in, hidden),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(hidden, vocab_size)
+        )
 
     def _make_mask(self, ids: torch.Tensor) -> torch.Tensor:
         return ids != self.pad_id
@@ -84,7 +93,7 @@ class AutoregrssionNetwork(nn.Module):
         # === ENCODER ===
         q_emb = self.dropout(self.embed(q_ids))
         enc_out, h_enc = self.encoder(q_emb)
-        h = h_enc.squeeze(0)
+        h = h_enc[-1]
         mask = self._make_mask(q_ids) if self.use_attention else None
 
         # === DECODER ===
@@ -92,6 +101,8 @@ class AutoregrssionNetwork(nn.Module):
 
         outputs = []
         generated_ids = []
+
+        finished = torch.zeros(B, dtype=torch.bool, device=q_ids.device)
 
         use_tf = self.training and target_ids is not None
 
@@ -121,6 +132,9 @@ class AutoregrssionNetwork(nn.Module):
                 else:
                     prev_id = logits.argmax(-1)
 
+                prev_id = torch.where(finished, torch.full_like(prev_id, self.pad_id), prev_id)
+                finished = finished | (prev_id == self.eos_id)
+
                 generated_ids.append(prev_id)
 
         if self.training:
@@ -135,8 +149,11 @@ class AutoregrssionNetwork(nn.Module):
         torch.save(self.state_dict(), path)
 
 
-def text_to_ids(engine: TokenEngine, text: str, max_tokens: int) -> list[int]:
+def text_to_ids(engine: TokenEngine, text: str, max_tokens: int, add_eos: bool = False) -> list[int]:
     ids = engine.tokenize(text)
+    if add_eos and len(ids) < max_tokens:
+        ids.append(engine.eos_id)
+
     if len(ids) > max_tokens:
         ids = ids[:max_tokens]
     elif len(ids) < max_tokens:

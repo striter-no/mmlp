@@ -8,6 +8,7 @@ class TokenEngine:
         self.token_to_id = {token: i for i, token in enumerate(self.vocab)}
         self.pad_id = self.token_to_id.get("<pad>", 0)
         self.unk_id = self.token_to_id.get("<unk>", 1)
+        self.eos_id = self.token_to_id.get("<eos>", 2)
 
         regex_order = sorted(self.vocab, key=len, reverse=True)
         pattern = "|".join(re.escape(t) for t in regex_order if t not in ["<pad>", "<unk>"])
@@ -44,7 +45,7 @@ class TokenEngine:
         for i in ids:
             if 0 <= i < len(self.vocab):
                 token = self.vocab[i]
-                if token not in ["<pad>", "<unk>"]:
+                if token not in ["<pad>", "<unk>", "<eos>"]:
                     out += token
 
         out = re.sub(r'\s+', ' ', out).strip()

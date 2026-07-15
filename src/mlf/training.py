@@ -64,7 +64,8 @@ class Training:
             a_ids = text_to_ids(
                 self.tokenizer.engine,
                 a_text,
-                self.model.settings.context_len
+                self.model.settings.context_len,
+                add_eos=True
             )
             self.training_data.append((q_ids, torch.tensor(a_ids, dtype=torch.long)))
 

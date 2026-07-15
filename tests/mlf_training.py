@@ -1,5 +1,10 @@
-import argparse
 import os
+
+import torch
+os.environ["PYTORCH_DISABLE_MIOpen"] = "1"
+
+
+import argparse
 import string
 
 from mlf.datastorage import DataStorage
@@ -14,7 +19,7 @@ def train_network(nn, storage, tokenizer, epochs, stop_error):
     trainer = Training(model=nn, storage=storage, tokenizer=tokenizer)
 
     print("[main] making training data")
-    trainer.prepare_data()
+    trainer.prepare_data(batch_size=32)
     trainer.show_info()
 
     print(f"[main] starting to train NN for {epochs} epochs")
@@ -30,6 +35,7 @@ def train_network(nn, storage, tokenizer, epochs, stop_error):
             break
 
 if __name__ == "__main__":
+    torch.backends.cudnn.enabled = False
     os.makedirs(".cache", exist_ok=True)
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)

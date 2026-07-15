@@ -15,17 +15,14 @@ def get_vocab(
 
     counter = Counter()
 
-    counter["<pad>"] = 999999
-    counter["<unk>"] = 999998
     for char in alphabet:
-        counter[char] += 999997
+        counter[char] += 999996
 
     for text in texts:
         text = text.lower()
         words = re.findall(r"[a-z]+|[^\sa-z]", text)
 
         for i, word in enumerate(words):
-
             if len(word) <= 4:
                 counter[word] += 1
             else:
@@ -33,5 +30,5 @@ def get_vocab(
                     for j in range(len(word) - n + 1):
                         counter[word[j:j+n]] += 1
 
-    top_items = [item[0] for item in counter.most_common(top_n)]
-    return top_items
+    top_items = [item[0] for item in counter.most_common(top_n - 3)]
+    return ["<pad>", "<unk>", "<eos>"] + top_items

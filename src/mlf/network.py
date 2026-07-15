@@ -34,6 +34,7 @@ class Network:
             embed_dim=settings.embedding_dims,
             hidden=settings.hidden_neurons,
             pad_id=tokenizer.engine.pad_id,
+            eos_id=tokenizer.engine.eos_id,
             use_attention=True,
             vocab_size=tokenizer.engine.base
         ).to(self.device)
@@ -61,8 +62,7 @@ class Network:
 
         network = Network(tokenizer=tokenizer, settings=settings, device=device)
 
-        print(f"[network] Loading weights from {model_path}")
-        network._model.load_state_dict(torch.load(model_path, map_location=network.device))
+        network._model.load_state_dict(torch.load(model_path, map_location=network.device, weights_only=False))
         network._model.to(network.device)
         network._model.eval()
 
@@ -85,6 +85,67 @@ class Network:
         with torch.no_grad():
             generated_ids = self._model(q_ids, temperature=temp, top_k=topk)
 
-        return self.tokenizer.engine.detokenize(
-            generated_ids.squeeze(0).tolist()
-        )
+        ids_list = generated_ids.squeeze(0).tolist()
+
+        return self.tokenizer.engine.detokenize(ids_list)
+
+    def predict_stream(self, input_text, temperature=None, top_k=None):
+        temp = self.settings.default_temp if temperature is None else temperature
+        topk = self.settings.default_top_k if top_k is None else top_k
+
+        self._model.eval()
+        q_ids = torch.tensor(
+            text_to_ids(
+                self.tokenizer.engine,
+                self.tokenizer.filter_text(input_text),
+                self._model.context_len
+            ),
+            dtype=torch.long
+        ).unsqueeze(0).to(self.device)
+
+        B = q_ids.size(0)
+
+        last_text = ""
+        with torch.no_grad():
+            q_emb = self._model.embed(q_ids)
+            enc_out, h = self._model.encoder(q_emb)
+            h = h[-1]
+            mask = self._model._make_mask(q_ids) if self._model.use_attention else None
+
+            prev_id = torch.full((B,), self._model.bos_id, dtype=torch.long, device=self.device)
+            generated_ids = []
+            finished = torch.zeros(B, dtype=torch.bool, device=self.device)
+
+            for t in range(self._model.context_len):
+                prev_emb = self._model.embed(prev_id)
+                h = self._model.cell(prev_emb, h)
+
+                if self._model.use_attention:
+                    context, _ = self._model.attention(h, enc_out, enc_out, mask)
+                    logits = self._model.head(torch.cat([h, context], dim=-1))
+                else:
+                    logits = self._model.head(h)
+
+                if t > 0:
+                    logits[torch.arange(B, device=logits.device), prev_id] -= 10.0
+
+                if topk > 0:
+                    top_logits, top_indices = torch.topk(logits, topk, dim=-1)
+                    probs = torch.softmax(top_logits / temp, dim=-1)
+                    idx = torch.multinomial(probs, 1).squeeze(-1)
+                    prev_id = top_indices.gather(-1, idx.unsqueeze(-1)).squeeze(-1)
+                else:
+                    prev_id = logits.argmax(-1)
+
+                prev_id = torch.where(finished, torch.full_like(prev_id, self._model.pad_id), prev_id)
+                finished = finished | (prev_id == self._model.eos_id)
+
+                curr_id = prev_id.item()
+                generated_ids.append(curr_id)
+
+                current_text = self.tokenizer.engine.detokenize(generated_ids)
+                yield current_text[len(last_text):]
+
+                last_text = current_text
+                if finished.all():
+                    break
