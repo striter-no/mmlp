@@ -40,6 +40,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--headless", action="store_true", help="Run without interactive tests")
+    parser.add_argument("--continue-learn", action="store_true", help="Load model and continue training")
     parser.add_argument("--epochs", type=int, help="How many epochs to train", default=60)
     parser.add_argument("--batch", type=int, help="Number of batch requests", default=64)
     parser.add_argument("--pairs", type=int, help="Number of Q/A pairs to load", default=2000)
@@ -85,6 +86,9 @@ if __name__ == "__main__":
     tokenizer.load_tokens(settings.tokens_num)
 
     nn = Network(tokenizer=tokenizer, settings=settings)
+    if args.continue_learn:
+        print("[main] loaded model, continuing to learn")
+        nn._model.load("./.cache/nn.pth", nn.device)
 
     try:
         train_network(nn, storage, tokenizer, args.epochs, args.stop_error, args.batch)
