@@ -1,10 +1,5 @@
-from math import floor
 import os
-
 import torch
-os.environ["PYTORCH_DISABLE_MIOpen"] = "1"
-
-
 import argparse
 import string
 
@@ -15,6 +10,8 @@ from mlf.training import Training
 from mlf.settings import ModelSettings
 
 from mlc.datasets import Dataset
+
+from math import floor
 
 def beautify_params(n: int) -> str:
     K_const = 10**3
