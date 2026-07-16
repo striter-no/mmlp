@@ -45,13 +45,13 @@ def beautify_time(n_sec: int) -> tuple[str, tuple[int, int, int]]:
 
     return f"{hours}h{round(minutes)}m{sec}s", (hours, round(minutes), sec)
 
-def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size, cost_rate):
+def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size, cost_rate, start_from):
     trainer = Training(model=nn, storage=storage, tokenizer=tokenizer)
     acc = nn.accelerator
 
     if acc.is_main_process:
         logger.info("[main] making training data")
-    trainer.prepare_data(epochs=epochs, batch_size=batch_size)
+    trainer.prepare_data(epochs=epochs, batch_size=batch_size, start_epoch=start_from)
     trainer.show_info()
 
     if acc.is_main_process:
@@ -134,7 +134,7 @@ if __name__ == "__main__":
 
     nn = Network(tokenizer=tokenizer, settings=settings)
     if args.continue_learn:
-        logger.info("[main] loaded model, continuing to learn")
+        logger.info(f"[main] loaded model, continuing to learn from {args.epochs_start} epoch")
         nn.raw_model.load("./.cache/nn.pth", nn.device)
 
     if nn.accelerator.is_main_process:
@@ -142,7 +142,7 @@ if __name__ == "__main__":
         logger.info(f"[main] all params: {beautify_params(nn.raw_model.get_n_params())}")
 
     try:
-        train_network(nn, storage, tokenizer, args.epochs, args.stop_error, args.batch, args.cost)
+        train_network(nn, storage, tokenizer, args.epochs, args.stop_error, args.batch, args.cost, args.epochs_start)
     except (KeyboardInterrupt, EOFError):
         logger.info("[main] interrupted")
     except Exception as ex:

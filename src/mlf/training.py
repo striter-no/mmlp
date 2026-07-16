@@ -35,7 +35,7 @@ class Training:
         info += f" - mixed precision: {self.accelerator.mixed_precision}\n"
         self.accelerator.print(info)
 
-    def prepare_data(self, batch_size=64, learning_rate=0.001, epochs=100):
+    def prepare_data(self, batch_size=64, learning_rate=0.001, epochs=100, start_epoch=0):
         X_list = []
         for dialog in self.storage.dialogues:
             ids = self.tokenizer.tokenize(dialog)
@@ -50,8 +50,8 @@ class Training:
 
         dataset = TensorDataset(X, Y)
 
-        batch_size *= self.accelerator.num_processes
-        self.dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        global_batch_size = batch_size * self.accelerator.num_processes
+        self.dataloader = DataLoader(dataset, batch_size=global_batch_size, shuffle=True)
 
         self.optimizer = torch.optim.AdamW(self.model._model.parameters(), lr=learning_rate, weight_decay=0.01)
         self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=self.tokenizer.engine.pad_id)
@@ -59,8 +59,10 @@ class Training:
         steps_per_epoch = len(self.dataloader)
         total_steps = steps_per_epoch * epochs
 
+        start_step = steps_per_epoch * start_epoch
+
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer, T_max=total_steps, eta_min=1e-5
+            self.optimizer, T_max=total_steps, eta_min=1e-5, last_epoch=start_step - 1
         )
 
         self.model._model, self.optimizer, self.dataloader = self.accelerator.prepare(
@@ -70,7 +72,7 @@ class Training:
         self.batch_size = batch_size
         self.learning_rate = learning_rate
 
-    def train_epoch(self) -> EpochInfo:
+    def train_epoch(self, continue_from: int = 0) -> EpochInfo:
         if self.dataloader is None:
             raise RuntimeError("No data")
 
