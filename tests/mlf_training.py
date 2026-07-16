@@ -115,10 +115,10 @@ if __name__ == "__main__":
     nn = Network(tokenizer=tokenizer, settings=settings)
     if args.continue_learn:
         print("[main] loaded model, continuing to learn")
-        nn._model.load("./.cache/nn.pth", nn.device)
+        nn.raw_model.load("./.cache/nn.pth", nn.device)
 
-    print(f"[main] trainable params: {beautify_params(nn._model.get_n_params(True))}")
-    print(f"[main] all params: {beautify_params(nn._model.get_n_params())}")
+    print(f"[main] trainable params: {beautify_params(nn.raw_model.get_n_params(True))}")
+    print(f"[main] all params: {beautify_params(nn.raw_model.get_n_params())}")
 
     try:
         train_network(nn, storage, tokenizer, args.epochs, args.stop_error, args.batch, args.cost)

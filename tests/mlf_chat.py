@@ -26,8 +26,8 @@ if __name__ == "__main__":
         settings_path="./.cache/settings.json"
     )
 
-    print(f"[main] trainable params: {beautify_params(nn._model.get_n_params(True))}")
-    print(f"[main] all params: {beautify_params(nn._model.get_n_params())}")
+    print(f"[main] trainable params: {beautify_params(nn.raw_model.get_n_params(True))}")
+    print(f"[main] all params: {beautify_params(nn.raw_model.get_n_params())}")
 
     print(f"[main] loaded: context: {settings.context_len}, neurons: {settings.hidden_neurons}")
     print("[main] 'exit' for exit")
