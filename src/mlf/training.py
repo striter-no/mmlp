@@ -34,7 +34,7 @@ class Training:
         info = "[training] general info:\n"
         info += " - network info:\n"
         info += f"   - hidden neurons: {s.hidden_neurons}\n"
-        info += f"   - embed dimentions: {s.embedding_dims}\n"
+        info += f"   - embed dimensions: {s.embedding_dims}\n"
         info += f"   - context length: {s.context_len}\n"
         info += f"   - dropout: {s.dropout}\n"
         info += f"   - using device: {self.model.device}\n"

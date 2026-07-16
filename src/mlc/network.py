@@ -31,7 +31,7 @@ class BahdanauAttention(nn.Module):
         return context, attn
 
 
-class AutoregrssionNetwork(nn.Module):
+class AutoregressionNetwork(nn.Module):
     def __init__(
         self,
         vocab_size: int,
@@ -40,6 +40,7 @@ class AutoregrssionNetwork(nn.Module):
         hidden: int = 512,
         pad_id: int = 0,
         eos_id: int = 0,
+        num_layers: int = 2,
         dropout: float = 0.3,
         use_attention: bool = True,
     ):
@@ -58,9 +59,9 @@ class AutoregrssionNetwork(nn.Module):
         self.encoder = nn.GRU(
             input_size=embed_dim,
             hidden_size=hidden,
-            num_layers=2,
+            num_layers=num_layers,
             batch_first=True,
-            dropout=0.3
+            dropout=dropout if num_layers > 1 else 0
         )
 
         if use_attention:
@@ -79,6 +80,11 @@ class AutoregrssionNetwork(nn.Module):
 
     def _make_mask(self, ids: torch.Tensor) -> torch.Tensor:
         return ids != self.pad_id
+
+    def get_n_params(self, only_trainable: bool = True) -> int:
+        if only_trainable:
+            return sum(p.numel() for p in self.parameters() if p.requires_grad)
+        return sum(p.numel() for p in self.parameters())
 
     def forward(
         self,

@@ -1,8 +1,7 @@
 import torch
 import os
-from attr import asdict
 
-from mlc.network import AutoregrssionNetwork, text_to_ids
+from mlc.network import AutoregressionNetwork, text_to_ids
 from mlf.tokenizer import Tokenizer
 from mlf.settings import ModelSettings
 from mlc.datasets import Dataset
@@ -28,20 +27,31 @@ class Network:
         self.tokenizer = tokenizer
         self.settings = settings
 
-        self._model = AutoregrssionNetwork(
+        self._model = AutoregressionNetwork(
             context_len=settings.context_len,
             dropout=settings.dropout,
             embed_dim=settings.embedding_dims,
             hidden=settings.hidden_neurons,
             pad_id=tokenizer.engine.pad_id,
             eos_id=tokenizer.engine.eos_id,
+            num_layers=settings.encoder_layers,
             use_attention=True,
             vocab_size=tokenizer.engine.base
         ).to(self.device)
 
+        if self.device.type == "cuda" and torch.cuda.device_count() > 1:
+            print(f"[network] using {torch.cuda.device_count()} GPUs")
+            self._model = torch.nn.DataParallel(self._model)
+
+    @property
+    def raw_model(self):
+        if isinstance(self._model, torch.nn.DataParallel):
+            return self._model.module
+        return self._model
+
     def save_to_file(self, path: str):
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        torch.save(self._model.state_dict(), path)
+        torch.save(self.raw_model.state_dict(), path)
 
     @staticmethod
     def load_from_file(model_path: str, settings_path: str, device: str = "auto"):
@@ -62,9 +72,11 @@ class Network:
 
         network = Network(tokenizer=tokenizer, settings=settings, device=device)
 
-        network._model.load_state_dict(torch.load(model_path, map_location=network.device, weights_only=False))
-        network._model.to(network.device)
-        network._model.eval()
+        network.raw_model.load_state_dict(
+            torch.load(model_path, map_location=network.device, weights_only=False)
+        )
+        network.raw_model.to(network.device)
+        network.raw_model.eval()
 
         return network, settings
 
@@ -77,13 +89,13 @@ class Network:
             text_to_ids(
                 self.tokenizer.engine,
                 self.tokenizer.filter_text(input_text),
-                self._model.context_len
+                self.raw_model.context_len
             ),
             dtype=torch.long
         ).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-            generated_ids = self._model(q_ids, temperature=temp, top_k=topk)
+            generated_ids = self.raw_model(q_ids, temperature=temp, top_k=topk)
 
         ids_list = generated_ids.squeeze(0).tolist()
 
@@ -98,7 +110,7 @@ class Network:
             text_to_ids(
                 self.tokenizer.engine,
                 self.tokenizer.filter_text(input_text),
-                self._model.context_len
+                self.raw_model.context_len
             ),
             dtype=torch.long
         ).unsqueeze(0).to(self.device)
@@ -107,24 +119,24 @@ class Network:
 
         last_text = ""
         with torch.no_grad():
-            q_emb = self._model.embed(q_ids)
-            enc_out, h = self._model.encoder(q_emb)
+            q_emb = self.raw_model.embed(q_ids)
+            enc_out, h = self.raw_model.encoder(q_emb)
             h = h[-1]
-            mask = self._model._make_mask(q_ids) if self._model.use_attention else None
+            mask = self.raw_model._make_mask(q_ids) if self.raw_model.use_attention else None
 
-            prev_id = torch.full((B,), self._model.bos_id, dtype=torch.long, device=self.device)
+            prev_id = torch.full((B,), self.raw_model.bos_id, dtype=torch.long, device=self.device)
             generated_ids = []
             finished = torch.zeros(B, dtype=torch.bool, device=self.device)
 
-            for t in range(self._model.context_len):
-                prev_emb = self._model.embed(prev_id)
-                h = self._model.cell(prev_emb, h)
+            for t in range(self.raw_model.context_len):
+                prev_emb = self.raw_model.embed(prev_id)
+                h = self.raw_model.cell(prev_emb, h)
 
-                if self._model.use_attention:
-                    context, _ = self._model.attention(h, enc_out, enc_out, mask)
-                    logits = self._model.head(torch.cat([h, context], dim=-1))
+                if self.raw_model.use_attention:
+                    context, _ = self.raw_model.attention(h, enc_out, enc_out, mask)
+                    logits = self.raw_model.head(torch.cat([h, context], dim=-1))
                 else:
-                    logits = self._model.head(h)
+                    logits = self.raw_model.head(h)
 
                 if t > 0:
                     logits[torch.arange(B, device=logits.device), prev_id] -= 10.0
@@ -137,8 +149,8 @@ class Network:
                 else:
                     prev_id = logits.argmax(-1)
 
-                prev_id = torch.where(finished, torch.full_like(prev_id, self._model.pad_id), prev_id)
-                finished = finished | (prev_id == self._model.eos_id)
+                prev_id = torch.where(finished, torch.full_like(prev_id, self.raw_model.pad_id), prev_id)
+                finished = finished | (prev_id == self.raw_model.eos_id)
 
                 curr_id = prev_id.item()
                 generated_ids.append(curr_id)

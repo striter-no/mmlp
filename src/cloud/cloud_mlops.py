@@ -8,6 +8,7 @@ load_dotenv()
 SERVER_IP = os.environ["MLP_MLOPS_SERVER_IP"]
 SERVER_USER = os.environ.get("MLP_MLOPS_SERVER_USER", "root")
 SERVER_PATH = os.environ.get("MLP_MLOPS_SERVER_PATH", "/root/mmlp")
+HOURS_COST = float(os.environ.get("MLP_RENT_COST", "0"))
 LOCAL_MODEL_PATH = os.environ.get("MLP_MODEL_PATH", "./.cache/nn.pth")
 LOCAL_MODEL_SETTINGS_PATH = os.environ.get("MLP_MODEL_SETTINGS_PATH", "./.cache/settings.json")
 
@@ -27,7 +28,7 @@ def update_code():
 def start_train(args: str):
     print("[cloud] Starting training on server...")
 
-    cmd = f"cd {SERVER_PATH} && source .venv/bin/activate && PYTHONUNBUFFERED=1 python3 ./tests/mlf_training.py {args} 2>&1 | tee train.log"
+    cmd = f"cd {SERVER_PATH} && source .venv/bin/activate && PYTHONUNBUFFERED=1 python3 ./tests/mlf_training.py {args} --cost {HOURS_COST} 2>&1 | tee train.log"
     run_ssh(cmd, background=True)
     print("[cloud] Training started in background.")
     print(f"[cloud] To view logs: ssh {SERVER_USER}@{SERVER_IP} 'tail -f {SERVER_PATH}/train.log'")

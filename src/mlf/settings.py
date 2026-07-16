@@ -18,6 +18,7 @@ class ModelSettings:
     default_temp: float
     default_top_k: int
     alphabet: str
+    encoder_layers: int = 2
     dropout: float = 0.3
 
     def to_dict(self) -> dict:

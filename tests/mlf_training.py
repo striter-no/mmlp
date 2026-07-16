@@ -1,3 +1,4 @@
+from math import floor
 import os
 
 import torch
@@ -15,7 +16,28 @@ from mlf.settings import ModelSettings
 
 from mlc.datasets import Dataset
 
-def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size):
+def beautify_params(n: int) -> str:
+    K_const = 10**3
+    M_const = 10**6
+    B_const = 10**9
+
+    if n > B_const:
+        return f"{n / B_const:.1f}M"
+    if n > M_const:
+        return f"{n / M_const:.1f}M"
+    if n > K_const:
+        return f"{n / K_const:.1f}K"
+
+    return f"{n}"
+
+def beautify_time(n_sec: int) -> tuple[str, tuple[int, int, int]]:
+    hours = n_sec // 3600
+    minutes = n_sec / 60 - hours * 60
+    sec = n_sec - hours * 3600 - floor(minutes) * 60
+
+    return f"{hours}h{round(minutes)}m{sec}s", (hours, round(minutes), sec)
+
+def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size, cost):
     trainer = Training(model=nn, storage=storage, tokenizer=tokenizer)
 
     print("[main] making training data")
@@ -26,9 +48,11 @@ def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size):
     for i in range(epochs):
         info = trainer.train_epoch()
         m_ep = info.time_elapsed / 60
-        eta = m_ep * (epochs - i)
+        eta = (m_ep * 60) * (epochs - i)
 
-        print(f"- epoch {i+1}/{epochs} (trained in {m_ep:.3f}m), error: {info.error:.4f} | ETA: {eta:.3f}m")
+        ptime, (hours, min, sec) = beautify_time(eta)
+        cost = hours * cost + min * cost / 60 + sec * cost / 3600
+        print(f"- epoch {i+1}/{epochs} (trained in {m_ep:.3f}m), error: {info.error:.4f} | ETA: {ptime}" + "" if cost == -1 else f"${cost}")
 
         if info.error < stop_error:
             print("[main] stopped training due the error being trained")
@@ -49,9 +73,11 @@ if __name__ == "__main__":
     parser.add_argument("--embed", type=int, help="Embedding dimensions", default=128)
     parser.add_argument("--neurons", type=int, help="Hidden neurons in GRU", default=512)
     parser.add_argument("--temp", type=float, help="Default temperature for inference", default=0.8)
+    parser.add_argument("--cost", type=float, help="How much costs 1 hour of training (-1 for disabling this info)", default=-1)
     parser.add_argument("--top-k", type=int, help="Default top-k for inference", default=5)
     parser.add_argument("--stop-error", type=float, help="When to stop training", default=1.3)
     parser.add_argument("--dropout", type=float, help="Dropout rate", default=0.3)
+    parser.add_argument("--layers", type=int, help="Number of GRU layers in encoder", default=2)
     args = parser.parse_args()
 
     settings = ModelSettings(
@@ -61,6 +87,7 @@ if __name__ == "__main__":
         column_title="summary",
         pairs_num=args.pairs,
         tokens_num=args.tokens,
+        encoder_layers=args.layers,
         context_len=args.context,
         embedding_dims=args.embed,
         hidden_neurons=args.neurons,
@@ -90,8 +117,11 @@ if __name__ == "__main__":
         print("[main] loaded model, continuing to learn")
         nn._model.load("./.cache/nn.pth", nn.device)
 
+    print(f"[main] trainable params: {beautify_params(nn._model.get_n_params(True))}")
+    print(f"[main] all params: {beautify_params(nn._model.get_n_params())}")
+
     try:
-        train_network(nn, storage, tokenizer, args.epochs, args.stop_error, args.batch)
+        train_network(nn, storage, tokenizer, args.epochs, args.stop_error, args.batch, args.cost)
     except (KeyboardInterrupt, EOFError):
         print("[main] interrupted")
     except Exception as ex:
