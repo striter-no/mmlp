@@ -37,7 +37,7 @@ def beautify_time(n_sec: int) -> tuple[str, tuple[int, int, int]]:
 
     return f"{hours}h{round(minutes)}m{sec}s", (hours, round(minutes), sec)
 
-def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size, cost):
+def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size, cost_rate):
     trainer = Training(model=nn, storage=storage, tokenizer=tokenizer)
 
     print("[main] making training data")
@@ -48,11 +48,16 @@ def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size, cost):
     for i in range(epochs):
         info = trainer.train_epoch()
         m_ep = info.time_elapsed / 60
-        eta = (m_ep * 60) * (epochs - i)
+        eta_sec = int(m_ep * 60 * (epochs - i - 1))
 
-        ptime, (hours, min, sec) = beautify_time(eta)
-        cost = hours * cost + min * cost / 60 + sec * cost / 3600
-        print(f"- epoch {i+1}/{epochs} (trained in {m_ep:.3f}m), error: {info.error:.4f} | ETA: {ptime}" + ("" if cost == -1 else f"${cost}"))
+        ptime, (hours, mins, sec) = beautify_time(eta_sec)
+
+        cost_str = ""
+        if cost_rate > 0:
+            total_cost = hours * cost_rate + mins * cost_rate / 60 + sec * cost_rate / 3600
+            cost_str = f" | Cost: ${total_cost:.2f}"
+
+        print(f"- epoch {i+1}/{epochs} (trained in {m_ep:.3f}m), error: {info.error:.4f} | ETA: {ptime}{cost_str}")
 
         if info.error < stop_error:
             print("[main] stopped training due the error being trained")
