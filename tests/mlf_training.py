@@ -52,19 +52,19 @@ def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size, cost):
 
         ptime, (hours, min, sec) = beautify_time(eta)
         cost = hours * cost + min * cost / 60 + sec * cost / 3600
-        print(f"- epoch {i+1}/{epochs} (trained in {m_ep:.3f}m), error: {info.error:.4f} | ETA: {ptime}" + "" if cost == -1 else f"${cost}")
+        print(f"- epoch {i+1}/{epochs} (trained in {m_ep:.3f}m), error: {info.error:.4f} | ETA: {ptime}" + ("" if cost == -1 else f"${cost}"))
 
         if info.error < stop_error:
             print("[main] stopped training due the error being trained")
             break
 
 if __name__ == "__main__":
-    torch.backends.cudnn.enabled = False
     os.makedirs(".cache", exist_ok=True)
 
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--headless", action="store_true", help="Run without interactive tests")
     parser.add_argument("--continue-learn", action="store_true", help="Load model and continue training")
+    parser.add_argument("--disable-cudnn", action="store_true", help="Disable cudnn")
     parser.add_argument("--epochs", type=int, help="How many epochs to train", default=60)
     parser.add_argument("--batch", type=int, help="Number of batch requests", default=64)
     parser.add_argument("--pairs", type=int, help="Number of Q/A pairs to load", default=2000)
@@ -79,6 +79,8 @@ if __name__ == "__main__":
     parser.add_argument("--dropout", type=float, help="Dropout rate", default=0.3)
     parser.add_argument("--layers", type=int, help="Number of GRU layers in encoder", default=2)
     args = parser.parse_args()
+
+    torch.backends.cudnn.enabled = args.disable_cudnn
 
     settings = ModelSettings(
         dataset_path="knkarthick/dialogsum",
