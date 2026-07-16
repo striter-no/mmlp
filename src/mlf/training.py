@@ -57,7 +57,7 @@ class Training:
         self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=self.tokenizer.engine.pad_id)
 
         steps_per_epoch = len(self.dataloader)
-        total_steps = steps_per_epoch * epochs
+        # total_steps = steps_per_epoch * epochs
 
         start_step = steps_per_epoch * start_epoch
 
@@ -65,9 +65,13 @@ class Training:
             for group in self.optimizer.param_groups:
                 group['initial_lr'] = learning_rate
 
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer, T_max=total_steps, eta_min=1e-5, last_epoch=start_step - 1
-        )
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                self.optimizer,
+                mode='min',
+                factor=0.5,
+                patience=20,
+                min_lr=1e-5
+            )
 
         self.model._model, self.optimizer, self.dataloader = self.accelerator.prepare(
             self.model._model, self.optimizer, self.dataloader
@@ -76,7 +80,7 @@ class Training:
         self.batch_size = batch_size
         self.learning_rate = learning_rate
 
-    def train_epoch(self, continue_from: int = 0) -> EpochInfo:
+    def train_epoch(self) -> EpochInfo:
         if self.dataloader is None:
             raise RuntimeError("No data")
 
@@ -94,10 +98,14 @@ class Training:
             self.accelerator.clip_grad_norm_(self.model._model.parameters(), max_norm=1.0)
             self.optimizer.step()
 
-            self.scheduler.step()
             total_loss += loss.item()
 
         got = time.time() - start
-
         self.accelerator.wait_for_everyone()
-        return EpochInfo(time_elapsed=got, total_loss=total_loss, error=total_loss/len(self.dataloader))
+
+        avg_loss = total_loss / len(self.dataloader)
+
+        if self.accelerator.is_main_process:
+            self.scheduler.step(avg_loss)
+
+        return EpochInfo(time_elapsed=got, total_loss=total_loss, error=avg_loss)

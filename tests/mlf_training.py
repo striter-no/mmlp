@@ -141,16 +141,20 @@ if __name__ == "__main__":
         logger.info(f"[main] trainable params: {beautify_params(nn.raw_model.get_n_params(True))}")
         logger.info(f"[main] all params: {beautify_params(nn.raw_model.get_n_params())}")
 
+    acc = nn.accelerator
     try:
-        train_network(nn, storage, tokenizer, args.epochs, args.stop_error, args.batch, args.cost, args.epochs_start)
+        train_network(nn, storage, tokenizer, args.epochs, args.stop_error, args.batch, args.cost, args.start_epoch)
     except (KeyboardInterrupt, EOFError):
-        logger.info("[main] interrupted")
+        if acc.is_main_process:
+            logger.warning("[main] interrupted")
     except Exception as ex:
-        logger.info(f"[main] during training exception occured: {ex}")
+        if acc.is_main_process:
+            logger.error(f"[main] during training exception occured: {ex}")
+    finally:
+        if acc.is_main_process:
+            logger.info("[main] done, saving results")
+            nn.save_to_file("./.cache/nn.pth")
+            settings.save_to_file("./.cache/settings.json")
+            logger.info("[main] done")
 
-    if nn.accelerator.is_main_process:
-        logger.info("[main] done, saving results")
-        nn.save_to_file("./.cache/nn.pth")
-        settings.save_to_file("./.cache/settings.json")
-
-        logger.info("[main] done")
+        acc.end_training()
