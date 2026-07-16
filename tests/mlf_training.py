@@ -143,7 +143,7 @@ if __name__ == "__main__":
 
     acc = nn.accelerator
     try:
-        train_network(nn, storage, tokenizer, args.epochs, args.stop_error, args.batch, args.cost, args.start_epoch)
+        train_network(nn, storage, tokenizer, args.epochs, args.stop_error, args.batch, args.cost, args.epochs_start)
     except (KeyboardInterrupt, EOFError):
         if acc.is_main_process:
             logger.warning("[main] interrupted")

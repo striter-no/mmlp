@@ -50,15 +50,12 @@ class Training:
 
         dataset = TensorDataset(X, Y)
 
-        global_batch_size = batch_size * self.accelerator.num_processes
-        self.dataloader = DataLoader(dataset, batch_size=global_batch_size, shuffle=True)
+        self.dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=True)
 
         self.optimizer = torch.optim.AdamW(self.model._model.parameters(), lr=learning_rate, weight_decay=0.01)
         self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=self.tokenizer.engine.pad_id)
 
         steps_per_epoch = len(self.dataloader)
-        # total_steps = steps_per_epoch * epochs
-
         start_step = steps_per_epoch * start_epoch
 
         if start_step > 0:
@@ -66,12 +63,12 @@ class Training:
                 group['initial_lr'] = learning_rate
 
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                self.optimizer,
-                mode='min',
-                factor=0.5,
-                patience=20,
-                min_lr=1e-5
-            )
+            self.optimizer,
+            mode='min',
+            factor=0.5,
+            patience=20,
+            min_lr=1e-5
+        )
 
         self.model._model, self.optimizer, self.dataloader = self.accelerator.prepare(
             self.model._model, self.optimizer, self.dataloader
@@ -90,22 +87,22 @@ class Training:
 
         for batch_X, batch_Y in self.dataloader:
             self.optimizer.zero_grad()
-
             logits = self.model._model(batch_X)
             loss = self.loss_fn(logits.transpose(1, 2), batch_Y)
-
             self.accelerator.backward(loss)
             self.accelerator.clip_grad_norm_(self.model._model.parameters(), max_norm=1.0)
             self.optimizer.step()
-
             total_loss += loss.item()
 
         got = time.time() - start
         self.accelerator.wait_for_everyone()
 
-        avg_loss = total_loss / len(self.dataloader)
+        local_avg_loss = total_loss / len(self.dataloader)
 
-        if self.accelerator.is_main_process:
-            self.scheduler.step(avg_loss)
+        loss_tensor = torch.tensor(local_avg_loss, device=self.model.device)
+        global_loss_tensor = self.accelerator.gather(loss_tensor)
+        global_avg_loss = global_loss_tensor.mean().item()
 
-        return EpochInfo(time_elapsed=got, total_loss=total_loss, error=avg_loss)
+        self.scheduler.step(global_avg_loss)
+
+        return EpochInfo(time_elapsed=got, total_loss=total_loss, error=global_avg_loss)
