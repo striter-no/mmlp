@@ -56,7 +56,7 @@ def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size, cost_r
 
     if acc.is_main_process:
         logger.info(f"[main] starting to train NN for {epochs} epochs")
-    for i in range(epochs):
+    for i in range(start_from, epochs):
         info = trainer.train_epoch()
         m_ep = info.time_elapsed / 60
         eta_sec = int(m_ep * 60 * (epochs - i - 1))

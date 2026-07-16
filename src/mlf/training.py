@@ -61,6 +61,10 @@ class Training:
 
         start_step = steps_per_epoch * start_epoch
 
+        if start_step > 0:
+            for group in self.optimizer.param_groups:
+                group['initial_lr'] = learning_rate
+
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer, T_max=total_steps, eta_min=1e-5, last_epoch=start_step - 1
         )
