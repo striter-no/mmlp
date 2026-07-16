@@ -85,7 +85,7 @@ if __name__ == "__main__":
     parser.add_argument("--layers", type=int, help="Number of GRU layers in encoder", default=2)
     args = parser.parse_args()
 
-    torch.backends.cudnn.enabled = args.disable_cudnn
+    torch.backends.cudnn.enabled = not args.disable_cudnn
 
     settings = ModelSettings(
         dataset_path="knkarthick/dialogsum",
