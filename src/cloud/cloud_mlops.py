@@ -3,7 +3,7 @@ import subprocess
 import os
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(dotenv_path=os.environ.get("MLP_ENV_PATH", ".env"))
 
 SERVER_IP = os.environ["MLP_MLOPS_SERVER_IP"]
 SERVER_USER = os.environ.get("MLP_MLOPS_SERVER_USER", "root")

@@ -1,3 +1,5 @@
+import json
+
 from aiohttp import web
 from typing import Callable, Coroutine
 
@@ -11,7 +13,7 @@ class APIRouter:
         self,
         spec: APISpec,
         handlers: dict[str,
-            Callable[[APIRequest], Coroutine[None, None, tuple[str, int]]]
+            Callable[[APIRequest], Coroutine[None, None, tuple[str | dict, int]]]
         ]
     ):
         for route, endpoint in spec.routes.items():
@@ -21,7 +23,7 @@ class APIRouter:
 
     def _add_routing(
         self,
-        handle: Callable[[APIRequest], Coroutine[None, None, tuple[str, int]]], path: str,
+        handle: Callable[[APIRequest], Coroutine[None, None, tuple[str | dict, int]]], path: str,
         type: API_rtypes
     ):
         @self.routes.route(method=type.value, path=path)
@@ -37,6 +39,9 @@ class APIRouter:
 
             api_r = APIRequest.parse(j)
             t, s = await handle(api_r)
+
+            if isinstance(t, dict):
+                return web.json_response(t, status=s)
 
             return web.Response(text=t, status=s)
 

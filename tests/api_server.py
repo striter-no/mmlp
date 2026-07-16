@@ -1,30 +1,19 @@
-from api.api import API_dtypes, API_rtypes, APIEndpoint, APIRequest
-from api.router import APIRouter, APISpec
-
-async def test_handler(r: APIRequest) -> tuple[str, int]:
-    return f"Echo for {r.identity}: {r.input}", 200
-
-def main():
-    spec = APISpec()
-    spec.add_endpoint(APIEndpoint(
-        description="Just some test endpoint",
-        input_type=API_dtypes.TEXT,
-        output_type=API_dtypes.TEXT,
-        possible_returns={200: "Ok"},
-        name="test",
-        route="/test",
-        rtype=API_rtypes.GET
-    ))
-
-    router = APIRouter()
-    router.create_from_api_spec(spec, {
-        "/test": test_handler
-    })
-
-    router.run_server(
-        host="127.0.0.1",
-        port=9000
-    )
+import os
+from mlf.network import Network
+from cloud.cloud_nn import CloudModelsManager
+import torch
 
 if __name__ == "__main__":
-    main()
+    os.makedirs(".cache", exist_ok=True)
+
+    print("[server] loading model")
+    nn, settings = Network.load_from_file(
+        model_path="./.cache/nn.pth",
+        settings_path="./.cache/settings.json"
+    )
+
+    torch.backends.cudnn.enabled = False
+
+    print("[server] starting cmm")
+    manager = CloudModelsManager(nn)
+    manager.run_server(port=9000)

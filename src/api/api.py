@@ -1,11 +1,9 @@
 from enum import Enum
-
 from attr import dataclass
 
-
 class API_rtypes(Enum):
-    POST = "post"
-    GET = "get"
+    POST = "POST"
+    GET = "GET"
 
 class API_dtypes(Enum):
     JSON = "json"
@@ -15,30 +13,25 @@ class API_dtypes(Enum):
 
 @dataclass
 class APIEndpoint:
-    name: str # short name, e.g. chat, email etc
-    route: str # base_url/>route<
+    name: str
+    route: str
     rtype: API_rtypes
-
-    input_type: API_dtypes # what accepts as input
-    output_type: API_dtypes # what returns
-
-    possible_returns: dict[int, str] # status: reason
+    input_type: API_dtypes
+    output_type: API_dtypes
+    possible_returns: dict[int, str]
     description: str
 
 @dataclass
 class APIRequest:
-    name: str
     identity: str
     input: str
 
     @staticmethod
     def parse(j: dict) -> 'APIRequest':
         return APIRequest(
-            identity=j["identity"],
-            input=j["input"],
-            name=j["name"]
+            identity=j.get("identity", ""),
+            input=j.get("input", ""),
         )
-
 
 class APISpec:
     def __init__(self) -> None:
@@ -48,16 +41,9 @@ class APISpec:
         self.routes[endpoint.route] = endpoint
 
 def is_correct_api(j: dict) -> bool:
-    if len(j.keys()) != 3:
+    if not isinstance(j, dict):
         return False
 
-    if j.get("name") is None:
+    if "identity" not in j or "input" not in j:
         return False
-
-    if j.get("identity") is None:
-        return False
-
-    if j.get("input") is None:
-        return False
-
     return True

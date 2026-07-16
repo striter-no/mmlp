@@ -1,4 +1,3 @@
-import json
 from types import TracebackType
 from urllib.parse import urljoin
 
@@ -23,12 +22,8 @@ class APIClient:
 
         endp = self.qtable[name]
         r = {
-            "input": (
-                input if endp.input_type != API_dtypes.JSON else
-                json.dumps(input)
-            ),
+            "input": input,
             "identity": self.identity,
-            "name": name,
         }
 
         async with self.session.request(
