@@ -53,7 +53,7 @@ class TransformerLM(nn.Module):
         return logits
 
     def load(self, path: str, device: torch.device):
-        self.load_state_dict(torch.load(path, map_location=device))
+        self.load_state_dict(torch.load(path, map_location=device, weights_only=False))
 
     def save(self, path: str):
         torch.save(self.state_dict(), path)

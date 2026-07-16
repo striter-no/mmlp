@@ -49,12 +49,13 @@ class Training:
         Y = torch.cat([X[:, 1:], torch.full((X.size(0), 1), self.tokenizer.engine.pad_id, dtype=torch.long)], dim=1)
 
         dataset = TensorDataset(X, Y)
+
+        batch_size *= self.accelerator.num_processes
         self.dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
         self.optimizer = torch.optim.AdamW(self.model._model.parameters(), lr=learning_rate, weight_decay=0.01)
         self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=self.tokenizer.engine.pad_id)
 
-        # Вычисляем точное количество шагов на одну эпоху и умножаем на количество эпох
         steps_per_epoch = len(self.dataloader)
         total_steps = steps_per_epoch * epochs
 
