@@ -1,12 +1,13 @@
 import torch
 import time
-
 from attr import dataclass
-from mlc.network import text_to_ids
 from mlf.datastorage import DataStorage
 from mlf.network import Network
 from mlf.tokenizer import Tokenizer
 from torch.utils.data import DataLoader, TensorDataset
+
+import logging
+logger = logging.getLogger(__name__)
 
 @dataclass
 class EpochInfo:
@@ -15,71 +16,50 @@ class EpochInfo:
     error: float
 
 class Training:
-    def __init__(
-        self,
-        storage: DataStorage,
-        tokenizer: Tokenizer,
-        model: Network
-    ):
+    def __init__(self, storage: DataStorage, tokenizer: Tokenizer, model: Network):
         self.tokenizer = tokenizer
         self.model = model
         self.storage = storage
-
-        self.dataloader: DataLoader | None = None
+        self.dataloader = None
         self.batch_size = -1
         self.learning_rate = -1
+        self.accelerator = model.accelerator # Берем accelerator из сети
 
     def show_info(self):
         s = self.model.settings
         info = "[training] general info:\n"
-        info += " - network info:\n"
-        info += f"   - hidden neurons: {s.hidden_neurons}\n"
-        info += f"   - embed dimensions: {s.embedding_dims}\n"
-        info += f"   - context length: {s.context_len}\n"
-        info += f"   - dropout: {s.dropout}\n"
-        info += f"   - using device: {self.model.device}\n"
-        info += " - training at:\n"
-        info += f"   - batch size: {self.batch_size}\n"
-        info += f"   - learning rate: {self.learning_rate}\n"
-        info += f" - loaded tokens: {len(self.tokenizer.tokens)}\n"
-        info += f" - loaded Q/A pairs: {len(self.storage.pairs)}\n"
+        info += f" - network info:\n   - hidden (FFN): {s.hidden_neurons}\n   - embed: {s.embedding_dims}\n   - context: {s.context_len}\n"
+        info += f" - training at:\n   - batch: {self.batch_size}\n   - lr: {self.learning_rate}\n"
+        info += f" - loaded dialogues: {len(self.storage.dialogues)}\n"
+        info += f" - device: {self.accelerator.device}\n"
+        info += f" - mixed precision: {self.accelerator.mixed_precision}\n"
+        self.accelerator.print(info)
 
-        print(info)
-
-    def prepare_data(
-        self,
-        batch_size: int = 64,
-        learning_rate = 0.001
-    ):
+    def prepare_data(self, batch_size=64, learning_rate=0.001):
         X_list = []
-        Y_list = []
 
-        for q_text, a_text in self.storage.pairs:
-            q_ids = text_to_ids(
-                self.tokenizer.engine,
-                self.tokenizer.filter_text(q_text),
-                self.model.settings.context_len,
-            )
+        for dialog in self.storage.dialogues:
+            ids = self.tokenizer.tokenize(dialog)
 
-            a_ids = text_to_ids(
-                self.tokenizer.engine,
-                a_text,
-                self.model.settings.context_len,
-                add_eos=True
-            )
+            if len(ids) > self.model.settings.context_len:
+                ids = ids[:self.model.settings.context_len]
 
-            X_list.append(q_ids)
-            Y_list.append(a_ids)
+            if len(ids) < self.model.settings.context_len:
+                ids = ids + [self.tokenizer.engine.pad_id] * (self.model.settings.context_len - len(ids))
+
+            X_list.append(ids)
 
         X = torch.tensor(X_list, dtype=torch.long)
-        Y = torch.tensor(Y_list, dtype=torch.long)
+        Y = torch.cat([X[:, 1:], torch.full((X.size(0), 1), self.tokenizer.engine.pad_id, dtype=torch.long)], dim=1)
 
         dataset = TensorDataset(X, Y)
         self.dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-        self.optimizer = torch.optim.Adam(self.model._model.parameters(), lr=learning_rate)
-        self.loss_fn = torch.nn.CrossEntropyLoss(
-            ignore_index=self.tokenizer.engine.pad_id
+        self.optimizer = torch.optim.AdamW(self.model._model.parameters(), lr=learning_rate, weight_decay=0.01)
+        self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=self.tokenizer.engine.pad_id)
+
+        self.model._model, self.optimizer, self.dataloader = self.accelerator.prepare(
+            self.model._model, self.optimizer, self.dataloader
         )
 
         self.batch_size = batch_size
@@ -87,28 +67,25 @@ class Training:
 
     def train_epoch(self) -> EpochInfo:
         if self.dataloader is None:
-            raise RuntimeError("Cannot train without training data")
+            raise RuntimeError("No data")
 
         self.model._model.train()
-
         start = time.time()
         total_loss = 0
 
         for batch_X, batch_Y in self.dataloader:
-            batch_X, batch_Y = batch_X.to(self.model.device), batch_Y.to(self.model.device)
             self.optimizer.zero_grad()
 
-            pred_logits = self.model._model(batch_X, batch_Y)
-            loss = self.loss_fn(pred_logits.transpose(1, 2), batch_Y)
+            logits = self.model._model(batch_X)
+            loss = self.loss_fn(logits.transpose(1, 2), batch_Y)
 
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.model._model.parameters(), max_norm=1.0)
+            self.accelerator.backward(loss)
+            self.accelerator.clip_grad_norm_(self.model._model.parameters(), max_norm=1.0)
+
             self.optimizer.step()
             total_loss += loss.item()
 
         got = time.time() - start
-        return EpochInfo(
-            time_elapsed=got,
-            total_loss=total_loss,
-            error=total_loss / len(self.dataloader)
-        )
+
+        self.accelerator.wait_for_everyone()
+        return EpochInfo(time_elapsed=got, total_loss=total_loss, error=total_loss/len(self.dataloader))

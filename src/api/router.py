@@ -1,9 +1,10 @@
-import json
-
 from aiohttp import web
 from typing import Callable, Coroutine
 
 from .api import API_rtypes, APIRequest, APISpec, is_correct_api
+
+import logging
+logger = logging.getLogger(__name__)
 
 class APIRouter:
     def __init__(self):
@@ -31,7 +32,7 @@ class APIRouter:
             try:
                 j = await request.json()
             except Exception as ex:
-                print(f"[main][test_handler] failed to get json: {ex}")
+                logger.info(f"[main][test_handler] failed to get json: {ex}")
                 return web.Response(text="Fail: invalid data encoding", status=403)
 
             if not is_correct_api(j):

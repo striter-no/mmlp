@@ -1,12 +1,13 @@
 from hashlib import sha256
-from typing import Counter
 
 import datasets
 from datasets import DownloadMode, load_dataset
 from datasets.load import load_from_disk
 
 import os
-import random
+
+import logging
+logger = logging.getLogger(__name__)
 
 class Dataset:
     def __init__(
@@ -64,19 +65,3 @@ class Dataset:
         if not self.is_loaded():
             return 0
         return len(self.dataset)
-
-
-if __name__ == "__main__":
-    ds = Dataset()
-    ds.load("wikimedia/wikipedia", "20231101.en", force_reload=True)
-
-    alphabet_en = " etaoinshrdlcumwfgypbvkjxqz,."
-    alphabet_ru = " йцукенгшщзхъфывапролджэячсмитьбю,."
-
-    random_inx = random.randint(0, ds.max_texts() - 1)
-
-    title = ds.get_title(random_inx)
-    text = ds.get_filtered(random_inx, alphabet_en, 80 * 40)
-
-    print(f"title: {title}\n")
-    print(f"text:\n{text}")

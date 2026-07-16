@@ -13,13 +13,12 @@ def ask(text: str) -> str:
     return resp.json()["completion"]
 
 
+user_input = "hello"
 while True:
     try:
-        user_input = input(">>> ")
-        if user_input.lower() == 'exit':
-            break
+        ans = ask(user_input)
+        print(ans)
 
-        print(ask(user_input))
-
+        user_input = ans
     except (KeyboardInterrupt, EOFError):
         break

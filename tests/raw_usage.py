@@ -37,11 +37,11 @@ def beautify_time(n_sec: int) -> tuple[str, tuple[int, int, int]]:
 def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size, cost_rate):
     trainer = Training(model=nn, storage=storage, tokenizer=tokenizer)
 
-    print("[main] making training data")
+    logger.info("[main] making training data")
     trainer.prepare_data(batch_size=batch_size)
     trainer.show_info()
 
-    print(f"[main] starting to train NN for {epochs} epochs")
+    logger.info(f"[main] starting to train NN for {epochs} epochs")
     for i in range(epochs):
         info = trainer.train_epoch()
         m_ep = info.time_elapsed / 60
@@ -54,10 +54,10 @@ def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size, cost_r
             total_cost = hours * cost_rate + mins * cost_rate / 60 + sec * cost_rate / 3600
             cost_str = f" | Cost: ${total_cost:.2f}"
 
-        print(f"- epoch {i+1}/{epochs} (trained in {m_ep:.3f}m), error: {info.error:.4f} | ETA: {ptime}{cost_str}")
+        logger.info(f"- epoch {i+1}/{epochs} (trained in {m_ep:.3f}m), error: {info.error:.4f} | ETA: {ptime}{cost_str}")
 
         if info.error < stop_error:
-            print("[main] stopped training due the error being trained")
+            logger.info("[main] stopped training due the error being trained")
             break
 
 if __name__ == "__main__":
@@ -97,26 +97,24 @@ if __name__ == "__main__":
         hidden_neurons=args.neurons,
         default_temp=args.temp,
         default_top_k=args.top_k,
-        alphabet=string.printable,
         dropout=args.dropout
     )
 
-    print(f"[main] loading dataset '{settings.dataset_name}'")
+    logger.info(f"[main] loading dataset '{settings.dataset_name}'")
     dial_ds = Dataset(column_text=settings.column_text, column_title=settings.column_title)
     dial_ds.load(settings.dataset_path, settings.dataset_name)
 
     storage = DataStorage(cache_path=".cache", dataset=dial_ds)
     storage.load_pairs(settings.pairs_num)
 
-    print("[main] making tokens")
+    logger.info("[main] making tokens")
     tokenizer = Tokenizer(
-        alphabet=settings.alphabet,
         cache_path=".cache",
         storage=storage
     )
     tokenizer.load_tokens(settings.tokens_num)
 
-    print(tokenizer.tokenize_str("Hello, tell me about yourself"))
-    print(tokenizer.tokenize_str("Any thoughts about Methionylthreonylthreonylglutaminylarginyltyrosylglutamylserylleucylphenylalanylalanylglutaminylleuc"))
+    logger.info(tokenizer.tokenize_str("Hello, tell me about yourself"))
+    logger.info(tokenizer.tokenize_str("Any thoughts about Methionylthreonylthreonylglutaminylarginyltyrosylglutamylserylleucylphenylalanylalanylglutaminylleuc"))
 
-    print(storage.pairs[0])
+    logger.info(storage.pairs[0])

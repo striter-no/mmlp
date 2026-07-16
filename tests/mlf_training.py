@@ -2,6 +2,9 @@ import os
 import torch
 import argparse
 import string
+import logging
+
+from accelerate import Accelerator
 
 from mlf.datastorage import DataStorage
 from mlf.network import Network
@@ -11,7 +14,15 @@ from mlf.settings import ModelSettings
 
 from mlc.datasets import Dataset
 
+
 from math import floor
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%H:%M:%S"
+)
+logger = logging.getLogger(__name__)
 
 def beautify_params(n: int) -> str:
     K_const = 10**3
@@ -36,12 +47,15 @@ def beautify_time(n_sec: int) -> tuple[str, tuple[int, int, int]]:
 
 def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size, cost_rate):
     trainer = Training(model=nn, storage=storage, tokenizer=tokenizer)
+    acc = nn.accelerator
 
-    print("[main] making training data")
+    if acc.is_main_process:
+        logger.info("[main] making training data")
     trainer.prepare_data(batch_size=batch_size)
     trainer.show_info()
 
-    print(f"[main] starting to train NN for {epochs} epochs")
+    if acc.is_main_process:
+        logger.info(f"[main] starting to train NN for {epochs} epochs")
     for i in range(epochs):
         info = trainer.train_epoch()
         m_ep = info.time_elapsed / 60
@@ -54,10 +68,12 @@ def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size, cost_r
             total_cost = hours * cost_rate + mins * cost_rate / 60 + sec * cost_rate / 3600
             cost_str = f" | Cost: ${total_cost:.2f}"
 
-        print(f"- epoch {i+1}/{epochs} (trained in {m_ep:.3f}m), error: {info.error:.4f} | ETA: {ptime}{cost_str}")
+        if acc.is_main_process:
+            logger.info(f"- epoch {i+1}/{epochs} (trained in {m_ep:.3f}m), error: {info.error:.4f} | ETA: {ptime}{cost_str}")
 
         if info.error < stop_error:
-            print("[main] stopped training due the error being trained")
+            if acc.is_main_process:
+                logger.info("[main] stopped training due the error being trained")
             break
 
 if __name__ == "__main__":
@@ -101,16 +117,15 @@ if __name__ == "__main__":
         dropout=args.dropout
     )
 
-    print(f"[main] loading dataset '{settings.dataset_name}'")
+    logger.info(f"[main] loading dataset '{settings.dataset_name}'")
     dial_ds = Dataset(column_text=settings.column_text, column_title=settings.column_title)
     dial_ds.load(settings.dataset_path, settings.dataset_name)
 
     storage = DataStorage(cache_path=".cache", dataset=dial_ds)
-    storage.load_pairs(settings.pairs_num)
+    storage.load_dialogues(settings.pairs_num)
 
-    print("[main] making tokens")
+    logger.info("[main] making tokens")
     tokenizer = Tokenizer(
-        alphabet=settings.alphabet,
         cache_path=".cache",
         storage=storage
     )
@@ -118,36 +133,21 @@ if __name__ == "__main__":
 
     nn = Network(tokenizer=tokenizer, settings=settings)
     if args.continue_learn:
-        print("[main] loaded model, continuing to learn")
+        logger.info("[main] loaded model, continuing to learn")
         nn.raw_model.load("./.cache/nn.pth", nn.device)
 
-    print(f"[main] trainable params: {beautify_params(nn.raw_model.get_n_params(True))}")
-    print(f"[main] all params: {beautify_params(nn.raw_model.get_n_params())}")
+    logger.info(f"[main] trainable params: {beautify_params(nn.raw_model.get_n_params(True))}")
+    logger.info(f"[main] all params: {beautify_params(nn.raw_model.get_n_params())}")
 
     try:
         train_network(nn, storage, tokenizer, args.epochs, args.stop_error, args.batch, args.cost)
     except (KeyboardInterrupt, EOFError):
-        print("[main] interrupted")
+        logger.info("[main] interrupted")
     except Exception as ex:
-        print(f"[main] during training exception occured: {ex}")
+        logger.info(f"[main] during training exception occured: {ex}")
 
-    print("[main] done, saving results")
+    logger.info("[main] done, saving results")
     nn.save_to_file("./.cache/nn.pth")
     settings.save_to_file("./.cache/settings.json")
 
-    if not args.headless:
-        print("\n--- [Dataset Test] ---")
-        for q, a in storage.pairs[:5]:
-            print(f"Q: {q}")
-            print(f"A: {a}")
-            print(f"\nNN: {nn.predict(q)}\n")
-
-        print("\n--- [Interactive] (type 'exit' to quit) ---")
-        while True:
-            try:
-                user_input = input(">>> ")
-                if user_input.lower() == 'exit':
-                    break
-                print(f"NN: {nn.predict(user_input)}\n")
-            except (KeyboardInterrupt, EOFError):
-                break
+    logger.info("[main] done")

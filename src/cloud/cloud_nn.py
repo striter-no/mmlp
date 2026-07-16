@@ -5,6 +5,9 @@ from .cloud_spec import CLOUD_BASIC_SPEC
 
 import string
 
+import logging
+logger = logging.getLogger(__name__)
+
 class CloudModelsManager:
     def __init__(self, nn: Network):
         self.nn = nn
@@ -19,7 +22,7 @@ class CloudModelsManager:
         text = api_r.input
 
         sanitized = "".join([c for c in text[:100] if c in string.printable])
-        print(
+        logger.info(
             f"[handler] incoming API request from {api_r.identity[:20]}, body: {sanitized}"
         )
 
