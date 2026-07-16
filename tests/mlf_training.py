@@ -84,6 +84,7 @@ if __name__ == "__main__":
     parser.add_argument("--continue-learn", action="store_true", help="Load model and continue training")
     parser.add_argument("--disable-cudnn", action="store_true", help="Disable cudnn")
     parser.add_argument("--epochs", type=int, help="How many epochs to train", default=60)
+    parser.add_argument("--epochs-start", type=int, help="From what epoch to start", default=0)
     parser.add_argument("--batch", type=int, help="Number of batch requests", default=64)
     parser.add_argument("--pairs", type=int, help="Number of Q/A pairs to load", default=2000)
     parser.add_argument("--tokens", type=int, help="Vocabulary size", default=3000)
