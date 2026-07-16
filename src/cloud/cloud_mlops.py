@@ -28,7 +28,7 @@ def update_code():
 def start_train(args: str):
     print("[cloud] Starting training on server...")
 
-    cmd = f"cd {SERVER_PATH} && source .venv/bin/activate && PYTHONUNBUFFERED=1 python3 ./tests/mlf_training.py {args} --cost {HOURS_COST} 2>&1 | tee train.log"
+    cmd = f"cd {SERVER_PATH} && source .venv/bin/activate && PYTHONUNBUFFERED=1 accelerate launch --num_processes=3 --multi_gpu ./tests/mlf_training.py {args} --cost {HOURS_COST} 2>&1 | tee train.log"
     run_ssh(cmd, background=True)
     print("[cloud] Training started in background.")
     print(f"[cloud] To view logs: ssh {SERVER_USER}@{SERVER_IP} 'tail -f {SERVER_PATH}/train.log'")

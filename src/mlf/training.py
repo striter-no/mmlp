@@ -23,7 +23,7 @@ class Training:
         self.dataloader = None
         self.batch_size = -1
         self.learning_rate = -1
-        self.accelerator = model.accelerator # Берем accelerator из сети
+        self.accelerator = model.accelerator
 
     def show_info(self):
         s = self.model.settings
@@ -35,18 +35,14 @@ class Training:
         info += f" - mixed precision: {self.accelerator.mixed_precision}\n"
         self.accelerator.print(info)
 
-    def prepare_data(self, batch_size=64, learning_rate=0.001):
+    def prepare_data(self, batch_size=64, learning_rate=0.001, epochs=100):
         X_list = []
-
         for dialog in self.storage.dialogues:
             ids = self.tokenizer.tokenize(dialog)
-
             if len(ids) > self.model.settings.context_len:
                 ids = ids[:self.model.settings.context_len]
-
             if len(ids) < self.model.settings.context_len:
                 ids = ids + [self.tokenizer.engine.pad_id] * (self.model.settings.context_len - len(ids))
-
             X_list.append(ids)
 
         X = torch.tensor(X_list, dtype=torch.long)
@@ -57,6 +53,14 @@ class Training:
 
         self.optimizer = torch.optim.AdamW(self.model._model.parameters(), lr=learning_rate, weight_decay=0.01)
         self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=self.tokenizer.engine.pad_id)
+
+        # Вычисляем точное количество шагов на одну эпоху и умножаем на количество эпох
+        steps_per_epoch = len(self.dataloader)
+        total_steps = steps_per_epoch * epochs
+
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer, T_max=total_steps, eta_min=1e-5
+        )
 
         self.model._model, self.optimizer, self.dataloader = self.accelerator.prepare(
             self.model._model, self.optimizer, self.dataloader
@@ -81,8 +85,9 @@ class Training:
 
             self.accelerator.backward(loss)
             self.accelerator.clip_grad_norm_(self.model._model.parameters(), max_norm=1.0)
-
             self.optimizer.step()
+
+            self.scheduler.step()
             total_loss += loss.item()
 
         got = time.time() - start

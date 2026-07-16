@@ -51,7 +51,7 @@ def train_network(nn, storage, tokenizer, epochs, stop_error, batch_size, cost_r
 
     if acc.is_main_process:
         logger.info("[main] making training data")
-    trainer.prepare_data(batch_size=batch_size)
+    trainer.prepare_data(epochs=epochs, batch_size=batch_size)
     trainer.show_info()
 
     if acc.is_main_process:
@@ -136,8 +136,9 @@ if __name__ == "__main__":
         logger.info("[main] loaded model, continuing to learn")
         nn.raw_model.load("./.cache/nn.pth", nn.device)
 
-    logger.info(f"[main] trainable params: {beautify_params(nn.raw_model.get_n_params(True))}")
-    logger.info(f"[main] all params: {beautify_params(nn.raw_model.get_n_params())}")
+    if nn.accelerator.is_main_process:
+        logger.info(f"[main] trainable params: {beautify_params(nn.raw_model.get_n_params(True))}")
+        logger.info(f"[main] all params: {beautify_params(nn.raw_model.get_n_params())}")
 
     try:
         train_network(nn, storage, tokenizer, args.epochs, args.stop_error, args.batch, args.cost)
@@ -146,8 +147,9 @@ if __name__ == "__main__":
     except Exception as ex:
         logger.info(f"[main] during training exception occured: {ex}")
 
-    logger.info("[main] done, saving results")
-    nn.save_to_file("./.cache/nn.pth")
-    settings.save_to_file("./.cache/settings.json")
+    if nn.accelerator.is_main_process:
+        logger.info("[main] done, saving results")
+        nn.save_to_file("./.cache/nn.pth")
+        settings.save_to_file("./.cache/settings.json")
 
-    logger.info("[main] done")
+        logger.info("[main] done")

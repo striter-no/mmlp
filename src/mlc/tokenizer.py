@@ -56,7 +56,6 @@ class TokenEngine:
         return enc.tokens
 
     def detokenize(self, ids: list[int]) -> str:
-        # Фильтруем все управляющие / рольные токены
         skip = {self.pad_id, self.bos_id, self.eos_id, self.unk_id, self.user_id, self.ai_id}
         clean_ids = [i for i in ids if i not in skip]
         return self.tokenizer.decode(clean_ids)
